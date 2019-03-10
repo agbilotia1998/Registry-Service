@@ -4,6 +4,7 @@ let cookieParser = require('cookie-parser');
 let mongoose = require('mongoose');
 let schema = mongoose.Schema;
 let app = express();
+let cors = require('cors');
 let parametersSchema = new schema({
   parameterPosition: Number,
   parameterType: String
@@ -20,6 +21,7 @@ const DB_URL = 'mongodb://localhost/serviceProvider';
 
 app.use(bodyParser.json());
 app.use(cookieParser());
+app.use(cors());
 mongoose.connect(DB_URL, function(err, res) {
   if(!err) {
     console.log("Connected to Registry service database");
@@ -32,8 +34,8 @@ app.get('/', function(req, res) {
 });
 
 app.get('/all-procedures', (req, res) => {
-  services.find({}, {name:1}, (err, res) => {
-    let procedureNames = res.map(element => element.name);
+  services.find({}, {serviceName:1}, (err, response) => {
+    let procedureNames = response.map(element => element.serviceName);
 
     res.send(procedureNames);
   })
@@ -74,9 +76,7 @@ app.post('/map', function(req, res) {
     returnType: returnType
   };
 
-  console.log(service);
-
-  services.update({'name': serviceName, 'parameters': allParams}, service, {upsert: true}, (err, response) => {
+  services.update({'serviceName': serviceName, 'parameters': allParams}, service, {upsert: true}, (err, response) => {
     if (!err) {
       res.send(response);
     }
