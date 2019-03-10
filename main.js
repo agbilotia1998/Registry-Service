@@ -16,7 +16,7 @@ let serviceSchema = new schema({
   returnType: String
 });
 let services = mongoose.model("service", serviceSchema);
-const PORT = process.env.port || 8000;
+const PORT = 8000 || process.env.PORT;
 const DB_URL = process.env.DB;
 
 app.use(bodyParser.json());
