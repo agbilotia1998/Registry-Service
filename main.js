@@ -31,6 +31,14 @@ app.get('/', function(req, res) {
   res.send('Welcome to Registry Service');
 });
 
+app.get('/all-procedures', (req, res) => {
+  services.find({}, {name:1}, (err, res) => {
+    let procedureNames = res.map(element => element.name);
+
+    res.send(procedureNames);
+  })
+});
+
 app.post('/map', function(req, res) {
   // let data = {
   //   name: "add",
@@ -67,10 +75,12 @@ app.post('/map', function(req, res) {
   };
 
   console.log(service);
-  let createPromise = services.create(service);
-  createPromise.then((response) => {
-    res.send(response);
-  })
+
+  services.update({'name': serviceName, 'parameters': allParams}, service, {upsert: true}, (err, response) => {
+    if (!err) {
+      res.send(response);
+    }
+  });
 });
 
 app.get('/service-provider', function(req, res) {
@@ -92,7 +102,7 @@ app.get('/service-provider', function(req, res) {
   console.log(service);
   services.findOne(service, function(err, service) {
     if(!err && service) {
-      res.status(200).send({Address: service.serverAddress});
+      res.status(200).send(service);
     } else {
      res.status(400).send({Message: 'Not found'});
     }
