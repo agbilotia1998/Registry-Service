@@ -16,7 +16,6 @@ let serviceSchema = new schema({
   returnType: String
 });
 let services = mongoose.model("service", serviceSchema);
-const PORT = 8000 || process.env.PORT;
 const DB_URL = process.env.DB;
 
 app.use(bodyParser.json());
@@ -109,7 +108,7 @@ app.get('/service-provider', function(req, res) {
   });
 });
 
-app.listen(PORT, function(err) {
+app.listen(process.env.PORT || 5000, function(err) {
   if(!err) {
     console.log('Registry server started');
   }
