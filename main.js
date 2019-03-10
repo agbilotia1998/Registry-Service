@@ -17,7 +17,7 @@ let serviceSchema = new schema({
 });
 let services = mongoose.model("service", serviceSchema);
 const PORT = process.env.port || 8000;
-const DB_URL = 'mongodb://localhost/serviceProvider';
+const DB_URL = process.env.DB;
 
 app.use(bodyParser.json());
 app.use(cookieParser());
@@ -43,7 +43,7 @@ app.get('/all-procedures', (req, res) => {
 
 app.post('/map', function(req, res) {
   // let data = {
-  //   name: "add",
+  //   serviceName: "add",
   //   parameters: [{
   //     position: 1,
   //     type: "int"
@@ -55,7 +55,7 @@ app.post('/map', function(req, res) {
   //   returnType: "int"
   // };
   let data = req.body;
-  let serviceName = data.name;
+  let serviceName = data.serviceName;
   let server = data.server;
   let parameters = data.parameters;
   let returnType = data.returnType;
@@ -85,7 +85,7 @@ app.post('/map', function(req, res) {
 
 app.get('/service-provider', function(req, res) {
   // let data = {
-  //   name: "addition",
+  //   serviceName: "addition",
   //   parameters: [{
   //     position: 1,
   //     type: "int"
@@ -99,9 +99,9 @@ app.get('/service-provider', function(req, res) {
   // };
 
   let service = JSON.parse(req.headers.data);
-  console.log(service);
   services.findOne(service, function(err, service) {
     if(!err && service) {
+      console.log(service);
       res.status(200).send(service);
     } else {
      res.status(400).send({Message: 'Not found'});
