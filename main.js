@@ -5,6 +5,10 @@ let mongoose = require('mongoose');
 let schema = mongoose.Schema;
 let app = express();
 let cors = require('cors');
+let RateLimit = require('express-rate-limit');
+let RedisStore = require('rate-limit-redis');
+let redis = require('redis');
+let request = require('request');
 let parametersSchema = new schema({
   parameterPosition: Number,
   parameterType: String
@@ -16,7 +20,7 @@ let serviceSchema = new schema({
   returnType: String
 });
 let services = mongoose.model("service", serviceSchema);
-const DB_URL = process.env.DB;
+const DB_URL = process.env.DB || "mongodb://localhost:27017/serviceProvider";
 
 app.use(bodyParser.json());
 app.use(cookieParser());
@@ -28,6 +32,19 @@ mongoose.connect(DB_URL, function(err, res) {
 });
 mongoose.Promise = global.Promise;
 
+const client = redis.createClient('redis://localhost:6379');
+const expireInSeconds = 10;
+const requestLimit = 20;
+const rateLimiter = new RateLimit({
+  store: new RedisStore({
+    client: client,
+    expiry: expireInSeconds
+  }),
+  windowMs: 1000 * expireInSeconds,
+  max: requestLimit
+});
+
+app.use(rateLimiter);
 app.get('/', function(req, res) {
   res.send('Welcome to Registry Service');
 });
@@ -100,15 +117,20 @@ app.get('/service-provider', function(req, res) {
   let service = JSON.parse(req.headers.data);
   services.findOne(service, function(err, service) {
     if(!err && service) {
-      console.log(service);
-      res.status(200).send(service);
+      request.get(service.serverAddress + '/active', function (request, response) {
+        response = JSON.parse(response.body);
+        if(response.result === true) {
+          console.log(service);
+          res.status(200).send(service);
+        }
+      });
     } else {
      res.status(400).send({Message: 'Not found'});
     }
   });
 });
 
-app.listen(process.env.PORT || 5000, function(err) {
+app.listen(process.env.PORT || 8000, function(err) {
   if(!err) {
     console.log('Registry server started');
   }
