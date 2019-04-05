@@ -16,14 +16,15 @@ let parametersSchema = new schema({
 let serverSchema = new schema({
   ip: String,
   numberOfRequests: Number
-}, { _id : false });
+});
 let serviceSchema = new schema({
   serviceName: String,
   parameters: [parametersSchema],
-  serverAddress: [serverSchema],
+  serverAddress: [String],
   returnType: String
 });
 let services = mongoose.model("service", serviceSchema);
+let servers = mongoose.model("server", serverSchema);
 const DB_URL = process.env.DB || "mongodb://localhost:27017/serviceProvider";
 
 app.use(bodyParser.json());
@@ -48,25 +49,29 @@ const rateLimiter = new RateLimit({
   max: requestLimit
 });
 
-function getServer(response) {
-  let minimum = Number.MAX_SAFE_INTEGER;
-  let result = null;
-  let count = 0, index = 0;
+async function getServer(response) {
 
-  response.serverAddress.forEach((server) => {
-    if(server.numberOfRequests <= minimum) {
-      result = server.ip;
-      index = count;
-      minimum = server.numberOfRequests;
-    }
-    count += 1;
+  return new Promise(function(resolve, reject){
+    let minimum = Number.MAX_SAFE_INTEGER;
+    let result = null;
+    let promiseArr = [];
+
+    response.serverAddress.forEach(server => {
+      let res = servers.findOne({ip: server}).exec();
+      promiseArr.push(res);
+    });
+
+    Promise.all(promiseArr).then((resp) => {
+      resp.forEach(res => {
+        if(res.numberOfRequests <= minimum) {
+          result = res.ip;
+          minimum = res.numberOfRequests;
+        }
+      });
+      response.serverAddress = result;
+      resolve({service: response});
+    });
   });
-  response.serverAddress = result;
-
-  return {
-    service: response,
-    index: index
-  };
 }
 
 app.use(rateLimiter);
@@ -115,25 +120,28 @@ app.post('/map', function(req, res) {
     parameters: allParams,
     returnType: returnType
   };
-  let servers = [];
+  let serversList = [];
   let serverData = {
-    ip: data.server,
+    ip: server,
     numberOfRequests: 0
   };
 
   services.findOne({'serviceName': serviceName, 'parameters': allParams}, {serverAddress:1}, (err, response) => {
     if(!err && response) {
-      servers = response.serverAddress;
+      serversList = response.serverAddress;
     }
-    let index = JSON.stringify(servers).indexOf(JSON.stringify(serverData));
+    let index = serversList.indexOf(server);
 
     if(index === -1) {
-      servers.push(serverData);
+      serversList.push(server);
     }
-    service.serverAddress = servers;
+    service.serverAddress = serversList;
     services.update({'serviceName': serviceName, 'parameters': allParams}, service, {upsert: true}, (err, response) => {
       if (!err) {
         res.send(response);
+        servers.update({'ip': server}, serverData, {upsert: true}, (err, response) => {
+          //console.log('Update made in servers collection');
+        });
       }
     });
   });
@@ -157,37 +165,36 @@ app.get('/service-provider', function(req, res) {
   let requestedService = JSON.parse(req.headers.data);
   services.findOne(requestedService, function(err, resp) {
     let modifiedResp = JSON.parse(JSON.stringify(resp));
-    let server = getServer(modifiedResp);
-    let service = server.service;
-    let index = server.index;
+    getServer(modifiedResp).then((server) => {
+      let service = server.service;
+      //service.serverAddress = 'http://localhost:5000';
+      console.log(service.serverAddress);
+      if (!err && service) {
+        request.get(service.serverAddress + '/active', function (request, response) {
+          if (response) {
+            response = JSON.parse(response.body);
+            if (response.result === true) {
+              //console.log(service);
+              servers.findOne({'ip': service.serverAddress}, function (error, serverEntry) {
+                let modifiedServerEntry = serverEntry;
 
-    console.log(service.serverAddress);
-    if(!err && service) {
-      request.get(service.serverAddress + '/active', function (request, response) {
-        if(response) {
-          response = JSON.parse(response.body);
-          if (response.result === true) {
-            console.log(service);
-            res.status(200).send(service);
-            let modifiedServerEntry = resp;
-
-            modifiedServerEntry.serverAddress[index].numberOfRequests += 1;
-            console.log(modifiedServerEntry.serverAddress[index].numberOfRequests)
-            console.log(modifiedServerEntry);
-            services.updateOne(requestedService, modifiedServerEntry, function(err, updateResponse) {
-              console.log(updateResponse);
+                modifiedServerEntry.numberOfRequests += 1;
+                servers.updateOne({'ip': service.serverAddress}, modifiedServerEntry, function (err, updateResponse) {
+                  res.status(200).send(service);
+                })
+              });
+            }
+          } else {
+            services.update(resp, {$pull: {serverAddress: service.serverAddress}}, function (err, deleteResponse) {
+              //console.log(deleteResponse);
             });
+            res.status(503).send(JSON.stringify({message: "Please retry"}));
           }
-        } else{
-          services.update(resp, { $pull: {serverAddress: { ip: service.serverAddress }} }, function(err, deleteResponse) {
-            console.log(deleteResponse);
-          });
-          res.status(503).send(JSON.stringify({message: "Please retry"}));
-        }
-      });
-    } else {
-     res.status(400).send({Message: 'Not found'});
-    }
+        });
+      } else {
+        res.status(400).send({Message: 'Not found'});
+      }
+    });
   });
 });
 
