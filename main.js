@@ -87,6 +87,21 @@ app.get('/all-procedures', (req, res) => {
   })
 });
 
+app.put('/completed', (req, response) => {;
+  let data = JSON.parse(req.headers.data);
+  let serverAddress = data.serverAddress;
+
+  servers.findOne({ip: serverAddress}, (err, res) => {
+    let activeRequests = res.numberOfRequests;
+
+    activeRequests -= 1;
+    res.numberOfRequests = activeRequests;
+    servers.updateOne({ip: serverAddress}, res, (err, res) => {
+      response.send(JSON.stringify({message: "Updated requests"}));
+    });
+  });
+});
+
 app.post('/map', function(req, res) {
   // let data = {
   //   serviceName: "add",
