@@ -37,7 +37,7 @@ mongoose.connect(DB_URL, function(err, res) {
 });
 mongoose.Promise = global.Promise;
 
-const client = redis.createClient('redis://localhost:6379');
+const client = redis.createClient(process.env.REDIS_URL || 'redis://localhost:6379');
 const expireInSeconds = 10;
 const requestLimit = 10;
 const rateLimiter = new RateLimit({
@@ -87,7 +87,7 @@ app.get('/all-procedures', (req, res) => {
   })
 });
 
-app.put('/completed', (req, response) => {;
+app.put('/completed', (req, response) => {
   let data = JSON.parse(req.headers.data);
   let serverAddress = data.serverAddress;
 
