@@ -183,16 +183,22 @@ app.get('/service-provider', function(req, res) {
     getServer(modifiedResp).then((server) => {
       let service = server.service;
       //service.serverAddress = 'http://localhost:5000';
-      console.log(service.serverAddress);
+      //console.log(service.serverAddress);
       if (!err && service) {
         request.get(service.serverAddress + '/active', function (request, response) {
           if (response) {
             response = JSON.parse(response.body);
-            if (response.result === true) {
-              //console.log(service);
-              servers.findOne({'ip': service.serverAddress}, function (error, serverEntry) {
+            //console.log(response);
+            if (response.result == true) {
+              console.log(service.serverAddress);
+              servers.findOne({"ip": service.serverAddress}, function (error, serverEntry) {
+                if(error) {
+                  console.log(error);
+                }
+
                 let modifiedServerEntry = serverEntry;
 
+                //console.log(modifiedServerEntry);
                 modifiedServerEntry.numberOfRequests += 1;
                 servers.updateOne({'ip': service.serverAddress}, modifiedServerEntry, function (err, updateResponse) {
                   res.status(200).send(service);
